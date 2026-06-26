@@ -139,6 +139,7 @@
         </div>
 
         <button onclick="runAnalysis()">▶ ANALİZ ÇALIŞTIR</button>
+        <button onclick="downloadReport()" style="background:#0f3460; margin-top:6px;">⬇ RAPOR İNDİR</button>
         <div class="loading" id="loading">⏳ Hesaplanıyor...</div>
 
         <div class="results" id="results">
@@ -246,6 +247,39 @@ async function runAnalysis() {
         marker:{color:vmv, colorscale:'Jet', size:6, colorbar:{title:'MPa', tickfont:{color:'#aaa'}, titlefont:{color:'#aaa'}}}, type:'scatter'}],
         {margin:{t:5,b:30,l:40,r:80}, paper_bgcolor:dark, plot_bgcolor:dark, font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa',scaleanchor:'x'}}, {displayModeBar:false});
 }
+
+async function downloadReport() {
+    const data = {
+        geometry: document.getElementById('geometry').value,
+        material: document.getElementById('material').value,
+        width: parseFloat(document.getElementById('width').value),
+        height: parseFloat(document.getElementById('height').value),
+        hole_radius: parseFloat(document.getElementById('hole_radius').value),
+        l_thickness: parseFloat(document.getElementById('l_thickness').value),
+        mesh_size: parseFloat(document.getElementById('mesh_size').value),
+        E: parseFloat(document.getElementById('E').value) * 1e9,
+        nu: parseFloat(document.getElementById('nu').value),
+        t: parseFloat(document.getElementById('t').value),
+        load: parseFloat(document.getElementById('load').value),
+        load_direction: document.getElementById('load_direction').value,
+        load_edge: document.getElementById('load_edge').value,
+        fixed_edge: document.getElementById('fixed_edge').value,
+    };
+
+    const resp = await fetch('/report', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'fem_raporu.pdf';
+    a.click();
+}
+
 </script>
 </body>
 </html>
