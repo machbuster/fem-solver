@@ -14,8 +14,7 @@ def assemble(nodes, elements, E, nu, t=1.0):
     Returns K : (2*n_nodes, 2*n_nodes) global stiffness matrix
     """
     n_nodes = len(nodes)
-    K = np.zeros((2*n_nodes, 2*n_nodes))
-
+    K = np.zeros((2*n_nodes, 2*n_nodes), dtype=np.float64)
     for elem_nodes in elements:
         coords = nodes[elem_nodes]
         elem = CSTElement(coords, E, nu, t)
@@ -29,5 +28,10 @@ def assemble(nodes, elements, E, nu, t=1.0):
         for i, gi in enumerate(dofs):
             for j, gj in enumerate(dofs):
                 K[gi, gj] += Ke[i, j]
+
+    # Isolated node'ları sabitle
+    for i in range(2*n_nodes):
+        if K[i, i] == 0.0:
+            K[i, i] = 1.0
 
     return K

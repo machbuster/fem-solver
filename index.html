@@ -12,30 +12,41 @@
         .header p { color: #aaa; font-size: 13px; margin-top: 4px; }
         .container { display: flex; height: calc(100vh - 80px); }
         .sidebar { width: 280px; background: #16213e; padding: 24px; border-right: 1px solid #0f3460; overflow-y: auto; }
-        .sidebar h3 { color: #e94560; margin-bottom: 16px; font-size: 14px; text-transform: uppercase; }
-        .form-group { margin-bottom: 16px; }
-        label { display: block; font-size: 12px; color: #aaa; margin-bottom: 6px; }
-        input { width: 100%; padding: 8px; background: #0f3460; border: 1px solid #e94560; border-radius: 4px; color: #eee; font-size: 13px; }
+        .sidebar h3 { color: #e94560; margin-bottom: 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .form-group { margin-bottom: 14px; }
+        label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 8px; background: #0f3460; border: 1px solid #e94560; border-radius: 4px; color: #eee; font-size: 13px; }
+        select option { background: #0f3460; }
+        .geo-params { display: none; }
+        .geo-params.active { display: block; }
         button { width: 100%; padding: 12px; background: #e94560; border: none; border-radius: 4px; color: white; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 8px; }
         button:hover { background: #c73652; }
-        .results { margin-top: 20px; padding: 12px; background: #0f3460; border-radius: 4px; }
-        .results h3 { color: #e94560; font-size: 12px; margin-bottom: 8px; }
+        .results { margin-top: 16px; padding: 12px; background: #0f3460; border-radius: 4px; display: none; }
+        .results h3 { color: #e94560; font-size: 11px; margin-bottom: 8px; letter-spacing: 1px; }
         .result-item { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; }
         .result-val { color: #4fc3f7; font-weight: bold; }
-        .main { flex: 1; padding: 20px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 12px; }
+        .main { flex: 1; padding: 16px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; }
         .plot-box { background: #16213e; border-radius: 8px; border: 1px solid #0f3460; padding: 8px; }
-        .plot-box h4 { color: #aaa; font-size: 12px; margin-bottom: 4px; text-align: center; }
-        .loading { display: none; text-align: center; color: #e94560; margin-top: 12px; }
+        .plot-box h4 { color: #aaa; font-size: 11px; margin-bottom: 4px; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+        .loading { display: none; text-align: center; color: #e94560; margin-top: 10px; font-size: 13px; }
     </style>
 </head>
 <body>
 <div class="header">
     <h1>⚙️ FEM Solver</h1>
-    <p>2D Plane Stress Analizi — CST Eleman</p>
+    <p>2D Plane Stress Analizi — CST Eleman | Gmsh Mesh</p>
 </div>
 <div class="container">
     <div class="sidebar">
         <h3>Geometri</h3>
+        <div class="form-group">
+            <label>Geometri Tipi</label>
+            <select id="geometry" onchange="updateGeoParams()">
+                <option value="rectangular">Dikdörtgen Plaka</option>
+                <option value="hole">Delikli Plaka</option>
+                <option value="l_shape">L Profil</option>
+            </select>
+        </div>
         <div class="form-group">
             <label>Genişlik (m)</label>
             <input type="number" id="width" value="1.0" step="0.1">
@@ -44,15 +55,29 @@
             <label>Yükseklik (m)</label>
             <input type="number" id="height" value="1.0" step="0.1">
         </div>
-        <div class="form-group">
-            <label>Mesh X (eleman sayısı)</label>
-            <input type="number" id="nx" value="10" min="2" max="30">
+
+        <!-- Delikli plaka parametreleri -->
+        <div class="geo-params" id="params-hole">
+            <div class="form-group">
+                <label>Delik Yarıçapı (m)</label>
+                <input type="number" id="hole_radius" value="0.2" step="0.05">
+            </div>
         </div>
-        <div class="form-group">
-            <label>Mesh Y (eleman sayısı)</label>
-            <input type="number" id="ny" value="10" min="2" max="30">
+
+        <!-- L profil parametreleri -->
+        <div class="geo-params" id="params-l_shape">
+            <div class="form-group">
+                <label>L Kalınlığı (m)</label>
+                <input type="number" id="l_thickness" value="0.3" step="0.05">
+            </div>
         </div>
-        <h3 style="margin-top:16px">Malzeme</h3>
+
+        <div class="form-group">
+            <label>Mesh Boyutu</label>
+            <input type="number" id="mesh_size" value="0.08" step="0.01">
+        </div>
+
+        <h3 style="margin-top:14px">Malzeme</h3>
         <div class="form-group">
             <label>Young Modülü (GPa)</label>
             <input type="number" id="E" value="210" step="10">
@@ -65,49 +90,51 @@
             <label>Kalınlık (m)</label>
             <input type="number" id="t" value="0.01" step="0.001">
         </div>
-        <h3 style="margin-top:16px">Yük</h3>
+
+        <h3 style="margin-top:14px">Yük</h3>
         <div class="form-group">
             <label>Sağ kenara yük (N)</label>
             <input type="number" id="load" value="1000" step="100">
         </div>
+
         <button onclick="runAnalysis()">▶ ANALİZ ÇALIŞTIR</button>
         <div class="loading" id="loading">⏳ Hesaplanıyor...</div>
-        <div class="results" id="results" style="display:none">
+
+        <div class="results" id="results">
             <h3>SONUÇLAR</h3>
-            <div class="result-item">
-                <span>Max Deplasman</span>
-                <span class="result-val" id="res-disp">—</span>
-            </div>
-            <div class="result-item">
-                <span>Max Von Mises</span>
-                <span class="result-val" id="res-vm">—</span>
-            </div>
-            <div class="result-item">
-                <span>Node Sayısı</span>
-                <span class="result-val" id="res-nodes">—</span>
-            </div>
-            <div class="result-item">
-                <span>Eleman Sayısı</span>
-                <span class="result-val" id="res-elems">—</span>
-            </div>
+            <div class="result-item"><span>Max Deplasman</span><span class="result-val" id="res-disp">—</span></div>
+            <div class="result-item"><span>Max Von Mises</span><span class="result-val" id="res-vm">—</span></div>
+            <div class="result-item"><span>Node Sayısı</span><span class="result-val" id="res-nodes">—</span></div>
+            <div class="result-item"><span>Eleman Sayısı</span><span class="result-val" id="res-elems">—</span></div>
         </div>
     </div>
+
     <div class="main">
         <div class="plot-box"><h4>Orijinal Mesh</h4><div id="plot-mesh" style="height:calc(100% - 20px)"></div></div>
         <div class="plot-box"><h4>Deforme Mesh</h4><div id="plot-deformed" style="height:calc(100% - 20px)"></div></div>
         <div class="plot-box" style="grid-column: span 2"><h4>Von Mises Stress Dağılımı</h4><div id="plot-stress" style="height:calc(100% - 20px)"></div></div>
     </div>
 </div>
+
 <script>
+function updateGeoParams() {
+    const geo = document.getElementById('geometry').value;
+    document.querySelectorAll('.geo-params').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById('params-' + geo);
+    if (el) el.classList.add('active');
+}
+
 async function runAnalysis() {
     document.getElementById('loading').style.display = 'block';
     document.getElementById('results').style.display = 'none';
 
     const data = {
+        geometry: document.getElementById('geometry').value,
         width: parseFloat(document.getElementById('width').value),
         height: parseFloat(document.getElementById('height').value),
-        nx: parseInt(document.getElementById('nx').value),
-        ny: parseInt(document.getElementById('ny').value),
+        hole_radius: parseFloat(document.getElementById('hole_radius').value),
+        l_thickness: parseFloat(document.getElementById('l_thickness').value),
+        mesh_size: parseFloat(document.getElementById('mesh_size').value),
         E: parseFloat(document.getElementById('E').value) * 1e9,
         nu: parseFloat(document.getElementById('nu').value),
         t: parseFloat(document.getElementById('t').value),
@@ -124,7 +151,7 @@ async function runAnalysis() {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('results').style.display = 'block';
     document.getElementById('res-disp').textContent = res.max_displacement_mm.toFixed(4) + ' mm';
-    document.getElementById('res-vm').textContent = (res.max_von_mises_pa/1e6).toFixed(2) + ' MPa';
+    document.getElementById('res-vm').textContent = (res.max_von_mises_pa/1e6).toFixed(3) + ' MPa';
     document.getElementById('res-nodes').textContent = res.nodes.length;
     document.getElementById('res-elems').textContent = res.elements.length;
 
@@ -133,40 +160,36 @@ async function runAnalysis() {
     const u = res.displacements;
     const vm = res.von_mises;
     const scale = 500;
+    const dark = '#16213e';
 
-    // Mesh çizimi
-    let meshX = [], meshY = [];
+    // Mesh
+    let mx = [], my = [];
     elems.forEach(e => {
-        [0,1,2,0].forEach(i => { meshX.push(nodes[e[i]][0]); meshY.push(nodes[e[i]][1]); });
-        meshX.push(null); meshY.push(null);
+        [0,1,2,0].forEach(i => { mx.push(nodes[e[i]][0]); my.push(nodes[e[i]][1]); });
+        mx.push(null); my.push(null);
     });
+    Plotly.newPlot('plot-mesh', [{x:mx, y:my, mode:'lines', line:{color:'#4fc3f7',width:0.6}, type:'scatter'}],
+        {margin:{t:5,b:30,l:40,r:10}, paper_bgcolor:dark, plot_bgcolor:dark, font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa',scaleanchor:'x'}}, {displayModeBar:false});
 
-    Plotly.newPlot('plot-mesh', [{x: meshX, y: meshY, mode:'lines', line:{color:'#4fc3f7', width:0.8}, type:'scatter'}],
-        {margin:{t:5,b:30,l:40,r:10}, paper_bgcolor:'#16213e', plot_bgcolor:'#16213e', font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa', scaleanchor:'x'}}, {displayModeBar:false});
-
-    // Deforme mesh
-    let defX = [], defY = [];
+    // Deforme
+    let dx = [], dy = [];
     elems.forEach(e => {
-        [0,1,2,0].forEach(i => {
-            defX.push(nodes[e[i]][0] + scale*u[2*e[i]]);
-            defY.push(nodes[e[i]][1] + scale*u[2*e[i]+1]);
-        });
-        defX.push(null); defY.push(null);
+        [0,1,2,0].forEach(i => { dx.push(nodes[e[i]][0]+scale*u[2*e[i]]); dy.push(nodes[e[i]][1]+scale*u[2*e[i]+1]); });
+        dx.push(null); dy.push(null);
     });
+    Plotly.newPlot('plot-deformed', [{x:dx, y:dy, mode:'lines', line:{color:'#e94560',width:0.6}, type:'scatter'}],
+        {margin:{t:5,b:30,l:40,r:10}, paper_bgcolor:dark, plot_bgcolor:dark, font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa',scaleanchor:'x'}}, {displayModeBar:false});
 
-    Plotly.newPlot('plot-deformed', [{x: defX, y: defY, mode:'lines', line:{color:'#e94560', width:0.8}, type:'scatter'}],
-        {margin:{t:5,b:30,l:40,r:10}, paper_bgcolor:'#16213e', plot_bgcolor:'#16213e', font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa', scaleanchor:'x'}}, {displayModeBar:false});
-
-    // Von Mises — her eleman merkezi
-    let cx = [], cy = [], vmVals = [];
-    elems.forEach((e, i) => {
+    // Von Mises
+    let cx = [], cy = [], vmv = [];
+    elems.forEach((e,i) => {
         cx.push((nodes[e[0]][0]+nodes[e[1]][0]+nodes[e[2]][0])/3);
         cy.push((nodes[e[0]][1]+nodes[e[1]][1]+nodes[e[2]][1])/3);
-        vmVals.push(vm[i]/1e6);
+        vmv.push(vm[i]/1e6);
     });
-
-    Plotly.newPlot('plot-stress', [{x: cx, y: cy, mode:'markers', marker:{color:vmVals, colorscale:'Jet', size:8, colorbar:{title:'MPa', tickfont:{color:'#aaa'}, titlefont:{color:'#aaa'}}}, type:'scatter'}],
-        {margin:{t:5,b:30,l:40,r:80}, paper_bgcolor:'#16213e', plot_bgcolor:'#16213e', font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa', scaleanchor:'x'}}, {displayModeBar:false});
+    Plotly.newPlot('plot-stress', [{x:cx, y:cy, mode:'markers',
+        marker:{color:vmv, colorscale:'Jet', size:6, colorbar:{title:'MPa', tickfont:{color:'#aaa'}, titlefont:{color:'#aaa'}}}, type:'scatter'}],
+        {margin:{t:5,b:30,l:40,r:80}, paper_bgcolor:dark, plot_bgcolor:dark, font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa',scaleanchor:'x'}}, {displayModeBar:false});
 }
 </script>
 </body>

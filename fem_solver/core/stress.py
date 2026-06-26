@@ -35,7 +35,7 @@ def compute_stress(nodes, elements, u, E, nu, t=1.0):
 
         # Von Mises stress
         sx, sy, txy = sigma
-        vm = np.sqrt(sx**2 - sx*sy + sy**2 + 3*txy**2)
+        vm = np.sqrt(np.maximum(sx**2 - sx*sy + sy**2 + 3*txy**2, 0))
         von_mises.append(vm)
 
     return np.array(stresses), np.array(von_mises)
