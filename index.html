@@ -91,9 +91,38 @@
             <input type="number" id="t" value="0.01" step="0.001">
         </div>
 
+        <h3 style="margin-top:14px">Sınır Koşulları</h3>
+        <div class="form-group">
+            <label>Sabit Kenar</label>
+            <select id="fixed_edge">
+                <option value="left">Sol</option>
+                <option value="right">Sağ</option>
+                <option value="bottom">Alt</option>
+                <option value="top">Üst</option>
+            </select>
+        </div>
+
         <h3 style="margin-top:14px">Yük</h3>
         <div class="form-group">
-            <label>Sağ kenara yük (N)</label>
+            <label>Yük Uygulanacak Kenar</label>
+            <select id="load_edge">
+                <option value="right">Sağ</option>
+                <option value="left">Sol</option>
+                <option value="top">Üst</option>
+                <option value="bottom">Alt</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Yük Yönü</label>
+            <select id="load_direction">
+                <option value="x">+X (sağa)</option>
+                <option value="-x">-X (sola)</option>
+                <option value="y">+Y (yukarı)</option>
+                <option value="-y">-Y (aşağı)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Yük Büyüklüğü (N)</label>
             <input type="number" id="load" value="1000" step="100">
         </div>
 
@@ -138,7 +167,10 @@ async function runAnalysis() {
         E: parseFloat(document.getElementById('E').value) * 1e9,
         nu: parseFloat(document.getElementById('nu').value),
         t: parseFloat(document.getElementById('t').value),
-        load: parseFloat(document.getElementById('load').value)
+        load: parseFloat(document.getElementById('load').value),
+        load_direction: document.getElementById('load_direction').value,
+        load_edge: document.getElementById('load_edge').value,
+        fixed_edge: document.getElementById('fixed_edge').value,
     };
 
     const resp = await fetch('/analyze', {

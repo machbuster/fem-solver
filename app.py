@@ -24,6 +24,9 @@ class AnalysisInput(BaseModel):
     nu: float = 0.3
     t: float = 0.01
     load: float = 1000.0
+    load_direction: str = "x"      # x, y, -x, -y
+    load_edge: str = "right"       # left, right, top, bottom
+    fixed_edge: str = "left"       # left, right, top, bottom
 
 @app.get("/", response_class=HTMLResponse)
 def index():
@@ -45,19 +48,38 @@ def analyze(data: AnalysisInput):
     f = np.zeros(2 * len(nodes))
     x_max = float(nodes[:,0].max())
     x_min = float(nodes[:,0].min())
-    tol = (x_max - x_min) * 0.01
+    y_max = float(nodes[:,1].max())
+    y_min = float(nodes[:,1].min())
+    tol_x = (x_max - x_min) * 0.01
+    tol_y = (y_max - y_min) * 0.01
 
-    # Sol kenar sabit
+    # Kenar seçimi
+    def get_edge_nodes(edge):
+        if edge == "left":
+            return [i for i, n in enumerate(nodes) if n[0] < x_min + tol_x]
+        elif edge == "right":
+            return [i for i, n in enumerate(nodes) if n[0] > x_max - tol_x]
+        elif edge == "bottom":
+            return [i for i, n in enumerate(nodes) if n[1] < y_min + tol_y]
+        elif edge == "top":
+            return [i for i, n in enumerate(nodes) if n[1] > y_max - tol_y]
+        return []
+
+    # Sabit kenar
     fixed_dofs = []
-    left_nodes = [i for i, n in enumerate(nodes) if n[0] < x_min + tol]
-    for n in left_nodes:
+    for n in get_edge_nodes(data.fixed_edge):
         fixed_dofs += [2*n, 2*n+1]
 
-    # Sağ kenara yük — eşit dağıt
-    right_nodes = [i for i, n in enumerate(nodes) if n[0] > x_max - tol]
-    load_per_node = data.load / len(right_nodes)
-    for n in right_nodes:
-        f[2*n] = load_per_node
+    # Yük yönü
+    dir_map = {"x": 0, "-x": 0, "y": 1, "-y": 1}
+    sign_map = {"x": 1, "-x": -1, "y": 1, "-y": -1}
+    dof_offset = dir_map[data.load_direction]
+    sign = sign_map[data.load_direction]
+
+    load_nodes = get_edge_nodes(data.load_edge)
+    load_per_node = sign * data.load / max(len(load_nodes), 1)
+    for n in load_nodes:
+        f[2*n + dof_offset] = load_per_node
 
     u = solve(K, f, fixed_dofs)
     _, von_mises = compute_stress(nodes, elements, u, data.E, data.nu, data.t)
