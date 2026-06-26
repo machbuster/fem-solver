@@ -79,12 +79,24 @@
 
         <h3 style="margin-top:14px">Malzeme</h3>
         <div class="form-group">
-            <label>Young Modülü (GPa)</label>
-            <input type="number" id="E" value="210" step="10">
+            <label>Malzeme Seç</label>
+            <select id="material" onchange="updateMaterial()">
+                <option value="steel">Çelik (S235)</option>
+                <option value="aluminum">Alüminyum (Al6061)</option>
+                <option value="titanium">Titanyum (Ti-6Al-4V)</option>
+                <option value="carbon_fp">Karbon Fiber (CFRP)</option>
+                <option value="custom">Özel</option>
+            </select>
         </div>
-        <div class="form-group">
-            <label>Poisson Oranı</label>
-            <input type="number" id="nu" value="0.3" step="0.01">
+        <div id="custom-material" style="display:none">
+            <div class="form-group">
+                <label>Young Modülü (GPa)</label>
+                <input type="number" id="E" value="210" step="10">
+            </div>
+            <div class="form-group">
+                <label>Poisson Oranı</label>
+                <input type="number" id="nu" value="0.3" step="0.01">
+            </div>
         </div>
         <div class="form-group">
             <label>Kalınlık (m)</label>
@@ -135,6 +147,8 @@
             <div class="result-item"><span>Max Von Mises</span><span class="result-val" id="res-vm">—</span></div>
             <div class="result-item"><span>Node Sayısı</span><span class="result-val" id="res-nodes">—</span></div>
             <div class="result-item"><span>Eleman Sayısı</span><span class="result-val" id="res-elems">—</span></div>
+            <div class="result-item"><span>Akma Sınırı</span><span class="result-val" id="res-yield">—</span></div>
+            <div class="result-item"><span>Güvenlik Faktörü</span><span class="result-val" id="res-sf">—</span></div>
         </div>
     </div>
 
@@ -153,12 +167,18 @@ function updateGeoParams() {
     if (el) el.classList.add('active');
 }
 
+function updateMaterial() {
+    const mat = document.getElementById('material').value;
+    document.getElementById('custom-material').style.display = mat === 'custom' ? 'block' : 'none';
+}
+
 async function runAnalysis() {
     document.getElementById('loading').style.display = 'block';
     document.getElementById('results').style.display = 'none';
 
     const data = {
         geometry: document.getElementById('geometry').value,
+        material: document.getElementById('material').value,
         width: parseFloat(document.getElementById('width').value),
         height: parseFloat(document.getElementById('height').value),
         hole_radius: parseFloat(document.getElementById('hole_radius').value),
@@ -186,6 +206,9 @@ async function runAnalysis() {
     document.getElementById('res-vm').textContent = (res.max_von_mises_pa/1e6).toFixed(3) + ' MPa';
     document.getElementById('res-nodes').textContent = res.nodes.length;
     document.getElementById('res-elems').textContent = res.elements.length;
+    document.getElementById('res-yield').textContent = res.yield_stress_mpa.toFixed(0) + ' MPa';
+    document.getElementById('res-sf').textContent = res.safety_factor.toFixed(2);
+    
 
     const nodes = res.nodes;
     const elems = res.elements;

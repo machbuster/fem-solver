@@ -11,10 +11,25 @@ from fem_solver.core.assembler import assemble
 from fem_solver.core.solver import solve
 from fem_solver.core.stress import compute_stress
 
+MATERIALS = {
+    "steel":      {"name": "Çelik (S235)",        "E": 210e9, "nu": 0.3,  "yield_mpa": 235},
+    "aluminum":   {"name": "Alüminyum (Al6061)",   "E": 69e9,  "nu": 0.33, "yield_mpa": 276},
+    "titanium":   {"name": "Titanyum (Ti-6Al-4V)", "E": 114e9, "nu": 0.34, "yield_mpa": 880},
+    "carbon_fp":  {"name": "Karbon Fiber (CFRP)",  "E": 70e9,  "nu": 0.1,  "yield_mpa": 600},
+    "custom":     {"name": "Özel",                 "E": 210e9, "nu": 0.3,  "yield_mpa": 250},
+}
+
+def get_materials():
+    return {k: v["name"] for k, v in MATERIALS.items()}
+
 app = FastAPI()
+
+@app.get("/materials")
+
 
 class AnalysisInput(BaseModel):
     geometry: str = "rectangular"  # rectangular, hole, l_shape
+    material: str = "steel"
     width: float = 1.0
     height: float = 1.0
     hole_radius: float = 0.2
@@ -35,6 +50,11 @@ def index():
 
 @app.post("/analyze")
 def analyze(data: AnalysisInput):
+    mat = MATERIALS.get(data.material, MATERIALS["steel"])
+    E = data.E if data.material == "custom" else mat["E"]
+    nu = data.nu if data.material == "custom" else mat["nu"]
+    yield_stress = mat["yield_mpa"] * 1e6
+
     # Mesh üret
     if data.geometry == "hole":
         nodes, elements = plate_with_hole(data.width, data.height, data.hole_radius, data.mesh_size)
@@ -43,8 +63,8 @@ def analyze(data: AnalysisInput):
     else:
         nodes, elements = rectangular_plate(data.width, data.height, data.mesh_size)
 
-    K = assemble(nodes, elements, data.E, data.nu, data.t)
-
+    K = assemble(nodes, elements, E, nu, data.t)
+    
     f = np.zeros(2 * len(nodes))
     x_max = float(nodes[:,0].max())
     x_min = float(nodes[:,0].min())
@@ -82,7 +102,7 @@ def analyze(data: AnalysisInput):
         f[2*n + dof_offset] = load_per_node
 
     u = solve(K, f, fixed_dofs)
-    _, von_mises = compute_stress(nodes, elements, u, data.E, data.nu, data.t)
+    _, von_mises = compute_stress(nodes, elements, u, E, nu, data.t)
 
     # nan kontrolü
     u = np.nan_to_num(u, nan=0.0)
@@ -94,5 +114,7 @@ def analyze(data: AnalysisInput):
         "displacements": u.tolist(),
         "von_mises": von_mises.tolist(),
         "max_displacement_mm": float(np.max(np.abs(u)) * 1000),
-        "max_von_mises_pa": float(von_mises.max())
+        "max_von_mises_pa": float(von_mises.max()),
+        "yield_stress_mpa": float(yield_stress / 1e6),
+        "safety_factor": float(yield_stress / von_mises.max()) if von_mises.max() > 0 else 999
     })
