@@ -6,6 +6,10 @@ Sıfırdan Python ile yazılmış, web tabanlı 2D Sonlu Elemanlar Yöntemi (FEM
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
 ![Gmsh](https://img.shields.io/badge/Gmsh-4.x-orange)
 
+## Ekran Görüntüsü
+
+![FEM Solver](docs/visual%20of%20program.png)
+
 ## Özellikler
 
 - CST (Constant Strain Triangle) eleman formülasyonu
