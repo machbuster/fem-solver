@@ -140,6 +140,7 @@ def index():
     with open("index.html") as f:
         return f.read()
 
+
 @app.post("/analyze")
 def analyze(data: AnalysisInput):
     if data.geometry == "hole":
