@@ -144,6 +144,7 @@
 
         <button onclick="runAnalysis()">▶ ANALİZ ÇALIŞTIR</button>
         <button onclick="downloadReport()" style="background:#0f3460; margin-top:6px;">⬇ RAPOR İNDİR</button>
+        <button onclick="runModal()" style="background:#6c3483; margin-top:6px;">🔔 MODAL ANALİZ</button>
         <div class="loading" id="loading">⏳ Hesaplanıyor...</div>
 
         <div class="results" id="results">
@@ -154,6 +155,10 @@
             <div class="result-item"><span>Eleman Sayısı</span><span class="result-val" id="res-elems">—</span></div>
             <div class="result-item"><span>Akma Sınırı</span><span class="result-val" id="res-yield">—</span></div>
             <div class="result-item"><span>Güvenlik Faktörü</span><span class="result-val" id="res-sf">—</span></div>
+            <div class="result-item" id="modal-results" style="display:none">
+                <span colspan="2" style="color:#e94560; font-weight:bold;">Doğal Frekanslar</span>
+            </div>
+            <div id="freq-list"></div>
         </div>
     </div>
 
@@ -290,6 +295,54 @@ async function runDXFAnalysis() {
     document.getElementById('res-sf').textContent = res.safety_factor.toFixed(2);
 
     drawPlots(res);
+}
+async function runModal() {
+    document.getElementById('loading').style.display = 'block';
+
+    const data = {
+        geometry: document.getElementById('geometry').value,
+        material: document.getElementById('material').value,
+        width: parseFloat(document.getElementById('width').value),
+        height: parseFloat(document.getElementById('height').value),
+        hole_radius: parseFloat(document.getElementById('hole_radius').value),
+        l_thickness: parseFloat(document.getElementById('l_thickness').value),
+        mesh_size: parseFloat(document.getElementById('mesh_size').value),
+        E: parseFloat(document.getElementById('E').value || '210') * 1e9,
+        nu: parseFloat(document.getElementById('nu').value || '0.3'),
+        t: parseFloat(document.getElementById('t').value),
+        load: parseFloat(document.getElementById('load').value),
+        load_direction: document.getElementById('load_direction').value,
+        load_edge: document.getElementById('load_edge').value,
+        fixed_edge: document.getElementById('fixed_edge').value,
+    };
+
+    const resp = await fetch('/modal', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    const res = await resp.json();
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('modal-results').style.display = 'flex';
+    document.getElementById('results').style.display = 'block';
+
+    const freqList = document.getElementById('freq-list');
+    freqList.innerHTML = res.frequencies_hz.map((f, i) =>
+        `<div class="result-item"><span>Mod ${i+1}</span><span class="result-val">${f.toFixed(2)} Hz</span></div>`
+    ).join('');
+
+    // Mod 1 şeklini çiz
+    const nodes = res.nodes;
+    const elems = res.elements;
+    const u = res.mode_shapes.map((row, i) => row[0]);
+
+    drawPlots({
+        nodes: nodes,
+        elements: elems,
+        displacements: u,
+        von_mises: new Array(elems.length).fill(0),
+    });
 }
 
 async function downloadReport() {

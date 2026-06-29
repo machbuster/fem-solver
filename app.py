@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 import io
 from pydantic import BaseModel
 import numpy as np
+from fem_solver.core.modal import compute_mass_matrix, modal_analysis
 import sys
 sys.path.insert(0, '/workspaces/fem-solver')
 
@@ -140,7 +141,47 @@ def index():
     with open("index.html") as f:
         return f.read()
 
+MATERIAL_DENSITY = {
+    "steel":     7850,
+    "aluminum":  2700,
+    "titanium":  4430,
+    "carbon_fp": 1600,
+    "custom":    7850,
+}
 
+@app.post("/modal")
+def modal(data: AnalysisInput):
+    if data.geometry == "hole":
+        nodes, elements = plate_with_hole(data.width, data.height, data.hole_radius, data.mesh_size)
+    elif data.geometry == "l_shape":
+        nodes, elements = l_shaped_plate(data.width, data.l_thickness, data.mesh_size)
+    else:
+        nodes, elements = rectangular_plate(data.width, data.height, data.mesh_size)
+
+    mat = MATERIALS.get(data.material, MATERIALS["steel"])
+    E = data.E if data.material == "custom" else mat["E"]
+    nu = data.nu if data.material == "custom" else mat["nu"]
+    rho = MATERIAL_DENSITY.get(data.material, 7850)
+
+    K = assemble(nodes, elements, E, nu, data.t)
+    M = compute_mass_matrix(nodes, elements, rho, data.t)
+
+    x_min = float(nodes[:,0].min())
+    tol_x = (nodes[:,0].max() - x_min) * 0.01
+    left_nodes = [i for i, n in enumerate(nodes) if n[0] < x_min + tol_x]
+    fixed_dofs = []
+    for n in left_nodes:
+        fixed_dofs += [2*n, 2*n+1]
+
+    freqs, mode_shapes = modal_analysis(K, M, fixed_dofs, n_modes=6)
+
+    return JSONResponse({
+        "frequencies_hz": freqs.tolist(),
+        "mode_shapes": mode_shapes.tolist(),
+        "nodes": nodes.tolist(),
+        "elements": elements.tolist(),
+    })
+    
 @app.post("/analyze")
 def analyze(data: AnalysisInput):
     if data.geometry == "hole":
