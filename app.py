@@ -4,6 +4,7 @@ import io
 from pydantic import BaseModel
 import numpy as np
 from fem_solver.core.modal import compute_mass_matrix, modal_analysis
+from fem_solver.core.thermal import compute_thermal_stiffness, solve_thermal, compute_heat_flux
 import sys
 sys.path.insert(0, '/workspaces/fem-solver')
 
@@ -28,6 +29,8 @@ class AnalysisInput(BaseModel):
     load_direction: str = "x"
     load_edge: str = "right"
     fixed_edge: str = "left"
+    n_modes: int = 6
+    rho: float = 7850.0
 
 MATERIALS = {
     "steel":      {"name": "Çelik (S235)",        "E": 210e9, "nu": 0.3,  "yield_mpa": 235},
@@ -149,6 +152,58 @@ MATERIAL_DENSITY = {
     "custom":    7850,
 }
 
+MATERIAL_CONDUCTIVITY = {
+    "steel":     50.0,
+    "aluminum":  205.0,
+    "titanium":  7.2,
+    "carbon_fp": 5.0,
+    "custom":    50.0,
+}
+
+class ThermalInput(BaseModel):
+    geometry: str = "rectangular"
+    material: str = "steel"
+    width: float = 1.0
+    height: float = 1.0
+    hole_radius: float = 0.2
+    l_thickness: float = 0.3
+    mesh_size: float = 0.1
+    t: float = 0.01
+    k: float = 50.0
+    T_hot: float = 100.0
+    T_cold: float = 0.0
+    hot_edge: str = "left"
+    cold_edge: str = "right"
+
+@app.post("/thermal")
+def thermal(data: ThermalInput):
+    if data.geometry == "hole":
+        nodes, elements = plate_with_hole(data.width, data.height, data.hole_radius, data.mesh_size)
+    elif data.geometry == "l_shape":
+        nodes, elements = l_shaped_plate(data.width, data.l_thickness, data.mesh_size)
+    else:
+        nodes, elements = rectangular_plate(data.width, data.height, data.mesh_size)
+
+    mat = MATERIALS.get(data.material, MATERIALS["steel"])
+    k = MATERIAL_CONDUCTIVITY.get(data.material, 50.0)
+
+    K_th = compute_thermal_stiffness(nodes, elements, k, data.t)
+    T = solve_thermal(K_th, nodes, data.hot_edge, data.cold_edge, data.T_hot, data.T_cold)
+    _, _, flux_mag = compute_heat_flux(nodes, elements, T, k)
+
+    T = np.nan_to_num(T, nan=0.0)
+    flux_mag = np.nan_to_num(flux_mag, nan=0.0)
+
+    return JSONResponse({
+        "nodes": nodes.tolist(),
+        "elements": elements.tolist(),
+        "temperature": T.tolist(),
+        "heat_flux": flux_mag.tolist(),
+        "T_max": float(T.max()),
+        "T_min": float(T.min()),
+        "flux_max": float(flux_mag.max()),
+    })
+
 @app.post("/modal")
 def modal(data: AnalysisInput):
     if data.geometry == "hole":
@@ -161,7 +216,7 @@ def modal(data: AnalysisInput):
     mat = MATERIALS.get(data.material, MATERIALS["steel"])
     E = data.E if data.material == "custom" else mat["E"]
     nu = data.nu if data.material == "custom" else mat["nu"]
-    rho = MATERIAL_DENSITY.get(data.material, 7850)
+    rho = data.rho if data.material == "custom" else MATERIAL_DENSITY.get(data.material, 7850)
 
     K = assemble(nodes, elements, E, nu, data.t)
     M = compute_mass_matrix(nodes, elements, rho, data.t)
@@ -173,7 +228,7 @@ def modal(data: AnalysisInput):
     for n in left_nodes:
         fixed_dofs += [2*n, 2*n+1]
 
-    freqs, mode_shapes = modal_analysis(K, M, fixed_dofs, n_modes=6)
+    freqs, mode_shapes = modal_analysis(K, M, fixed_dofs, n_modes=data.n_modes)
 
     return JSONResponse({
         "frequencies_hz": freqs.tolist(),
@@ -181,7 +236,7 @@ def modal(data: AnalysisInput):
         "nodes": nodes.tolist(),
         "elements": elements.tolist(),
     })
-    
+
 @app.post("/analyze")
 def analyze(data: AnalysisInput):
     if data.geometry == "hole":

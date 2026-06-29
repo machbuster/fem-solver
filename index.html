@@ -40,6 +40,15 @@
     <div class="sidebar">
         
         <hr style="border-color:#0f3460; margin-bottom:16px;">
+        <h3>Analiz Tipi</h3>
+        <div class="form-group">
+            <select id="analysis_type" onchange="updateAnalysisParams()">
+                <option value="static">Statik Analiz</option>
+                <option value="modal">Modal Analiz</option>
+                <option value="thermal">Thermal Analiz</option>
+            </select>
+        </div>
+        <hr style="border-color:#0f3460; margin-bottom:16px;">
         <h3>Hazır Geometri</h3>
 
         <h3>Geometri</h3>
@@ -118,15 +127,79 @@
             </select>
         </div>
 
-        <h3 style="margin-top:14px">Yük</h3>
-        <div class="form-group">
-            <label>Yük Uygulanacak Kenar</label>
-            <select id="load_edge">
-                <option value="right">Sağ</option>
-                <option value="left">Sol</option>
-                <option value="top">Üst</option>
-                <option value="bottom">Alt</option>
-            </select>
+        <!-- Statik Analiz Parametreleri -->
+        <div id="params-static">
+            <h3 style="margin-top:14px">Yük</h3>
+            <div class="form-group">
+                <label>Yük Uygulanacak Kenar</label>
+                <select id="load_edge">
+                    <option value="right">Sağ</option>
+                    <option value="left">Sol</option>
+                    <option value="top">Üst</option>
+                    <option value="bottom">Alt</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Yük Yönü</label>
+                <select id="load_direction">
+                    <option value="x">+X (sağa)</option>
+                    <option value="-x">-X (sola)</option>
+                    <option value="y">+Y (yukarı)</option>
+                    <option value="-y">-Y (aşağı)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Yük Büyüklüğü (N)</label>
+                <input type="number" id="load" value="1000" step="100">
+            </div>
+        </div>
+
+        <!-- Modal Analiz Parametreleri -->
+        <div id="params-modal" style="display:none">
+            <h3 style="margin-top:14px">Modal Parametreler</h3>
+            <div class="form-group">
+                <label>Mod Sayısı</label>
+                <input type="number" id="n_modes" value="6" min="1" max="20">
+            </div>
+            <div class="form-group">
+                <label>Yoğunluk (kg/m³)</label>
+                <input type="number" id="rho" value="7850" step="100">
+            </div>
+        </div>
+
+        <!-- Thermal Analiz Parametreleri -->
+        <div id="params-thermal" style="display:none">
+            <h3 style="margin-top:14px">Thermal Parametreler</h3>
+            <div class="form-group">
+                <label>Sıcak Kenar</label>
+                <select id="hot_edge">
+                    <option value="left">Sol</option>
+                    <option value="right">Sağ</option>
+                    <option value="top">Üst</option>
+                    <option value="bottom">Alt</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Sıcak Kenar Sıcaklığı (°C)</label>
+                <input type="number" id="T_hot" value="100" step="10">
+            </div>
+            <div class="form-group">
+                <label>Soğuk Kenar</label>
+                <select id="cold_edge">
+                    <option value="right">Sağ</option>
+                    <option value="left">Sol</option>
+                    <option value="top">Üst</option>
+                    <option value="bottom">Alt</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Soğuk Kenar Sıcaklığı (°C)</label>
+                <input type="number" id="T_cold" value="0" step="10">
+            </div>
+            <div class="form-group">
+                <label>Termal İletkenlik (W/m·K)</label>
+                <input type="number" id="k_thermal" value="50" step="5">
+            </div>
         </div>
         <div class="form-group">
             <label>Yük Yönü</label>
@@ -142,7 +215,7 @@
             <input type="number" id="load" value="1000" step="100">
         </div>
 
-        <button onclick="runAnalysis()">▶ ANALİZ ÇALIŞTIR</button>
+        <button onclick="runByType()">▶ ANALİZ ÇALIŞTIR</button>
         <button onclick="downloadReport()" style="background:#0f3460; margin-top:6px;">⬇ RAPOR İNDİR</button>
         <button onclick="runModal()" style="background:#6c3483; margin-top:6px;">🔔 MODAL ANALİZ</button>
         <div class="loading" id="loading">⏳ Hesaplanıyor...</div>
@@ -175,6 +248,20 @@ function updateGeoParams() {
     document.querySelectorAll('.geo-params').forEach(el => el.classList.remove('active'));
     const el = document.getElementById('params-' + geo);
     if (el) el.classList.add('active');
+}
+
+function updateAnalysisParams() {
+    const type = document.getElementById('analysis_type').value;
+    document.getElementById('params-static').style.display = type === 'static' ? 'block' : 'none';
+    document.getElementById('params-modal').style.display = type === 'modal' ? 'block' : 'none';
+    document.getElementById('params-thermal').style.display = type === 'thermal' ? 'block' : 'none';
+}
+
+function runByType() {
+    const type = document.getElementById('analysis_type').value;
+    if (type === 'static') runAnalysis();
+    else if (type === 'modal') runModal();
+    else if (type === 'thermal') runThermal();
 }
 
 function updateMaterial() {
@@ -343,6 +430,83 @@ async function runModal() {
         displacements: u,
         von_mises: new Array(elems.length).fill(0),
     });
+}
+
+async function runThermal() {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+
+    const data = {
+        geometry: document.getElementById('geometry').value,
+        material: document.getElementById('material').value,
+        width: parseFloat(document.getElementById('width').value),
+        height: parseFloat(document.getElementById('height').value),
+        hole_radius: parseFloat(document.getElementById('hole_radius').value),
+        l_thickness: parseFloat(document.getElementById('l_thickness').value),
+        mesh_size: parseFloat(document.getElementById('mesh_size').value),
+        t: parseFloat(document.getElementById('t').value),
+        k: parseFloat(document.getElementById('k_thermal').value),
+        T_hot: parseFloat(document.getElementById('T_hot').value),
+        T_cold: parseFloat(document.getElementById('T_cold').value),
+        hot_edge: document.getElementById('hot_edge').value,
+        cold_edge: document.getElementById('cold_edge').value,
+    };
+
+    const resp = await fetch('/thermal', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    const res = await resp.json();
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('res-disp').textContent = res.T_max.toFixed(1) + ' °C';
+    document.getElementById('res-vm').textContent = res.flux_max.toFixed(2) + ' W/m²';
+    document.getElementById('res-nodes').textContent = res.nodes.length;
+    document.getElementById('res-elems').textContent = res.elements.length;
+    document.getElementById('res-yield').textContent = res.T_min.toFixed(1) + ' °C';
+    document.getElementById('res-sf').textContent = '—';
+
+    // Sıcaklık dağılımı çiz
+    const nodes = res.nodes;
+    const elems = res.elements;
+    const T = res.temperature;
+    const flux = res.heat_flux;
+
+    let mx = [], my = [];
+    elems.forEach(e => {
+        [0,1,2,0].forEach(i => { mx.push(nodes[e[i]][0]); my.push(nodes[e[i]][1]); });
+        mx.push(null); my.push(null);
+    });
+
+    const dark = '#16213e';
+    Plotly.newPlot('plot-mesh', [{x:mx, y:my, mode:'lines', line:{color:'#4fc3f7',width:0.6}, type:'scatter'}],
+        {margin:{t:5,b:30,l:40,r:10}, paper_bgcolor:dark, plot_bgcolor:dark, font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa',scaleanchor:'x'}}, {displayModeBar:false});
+
+    // Sıcaklık kontur
+    let cx = [], cy = [], tv = [];
+    elems.forEach((e,i) => {
+        cx.push((nodes[e[0]][0]+nodes[e[1]][0]+nodes[e[2]][0])/3);
+        cy.push((nodes[e[0]][1]+nodes[e[1]][1]+nodes[e[2]][1])/3);
+        tv.push((T[e[0]]+T[e[1]]+T[e[2]])/3);
+    });
+    Plotly.newPlot('plot-deformed', [{x:cx, y:cy, mode:'markers',
+        marker:{color:tv, colorscale:'Hot', size:6, colorbar:{title:'°C', tickfont:{color:'#aaa'}, titlefont:{color:'#aaa'}}}, type:'scatter'}],
+        {margin:{t:5,b:30,l:40,r:80}, paper_bgcolor:dark, plot_bgcolor:dark, font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa',scaleanchor:'x'},
+        title:{text:'Sıcaklık Dağılımı', font:{color:'#aaa', size:11}}}, {displayModeBar:false});
+
+    // Isı akısı
+    let fx = [], fy = [], fv = [];
+    elems.forEach((e,i) => {
+        fx.push((nodes[e[0]][0]+nodes[e[1]][0]+nodes[e[2]][0])/3);
+        fy.push((nodes[e[0]][1]+nodes[e[1]][1]+nodes[e[2]][1])/3);
+        fv.push(flux[i]);
+    });
+    Plotly.newPlot('plot-stress', [{x:fx, y:fy, mode:'markers',
+        marker:{color:fv, colorscale:'Jet', size:6, colorbar:{title:'W/m²', tickfont:{color:'#aaa'}, titlefont:{color:'#aaa'}}}, type:'scatter'}],
+        {margin:{t:5,b:30,l:40,r:80}, paper_bgcolor:dark, plot_bgcolor:dark, font:{color:'#aaa'}, xaxis:{color:'#aaa'}, yaxis:{color:'#aaa',scaleanchor:'x'},
+        title:{text:'Isı Akısı', font:{color:'#aaa', size:11}}}, {displayModeBar:false});
 }
 
 async function downloadReport() {
